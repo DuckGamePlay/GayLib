@@ -1,1099 +1,921 @@
-LibraryV2 = {}
-LibraryV2.__index = LibraryV2
-LibraryV2.Notifications = {}
+local library = {}
 
---[[ // Plan 
+library.__index = library
 
-    Program config checker
-    See if user has ever used the script before, else prompt first time UI
-    
-    LIB SYSTEM - {
-
-        Tab creation - {
-
-            Tab (instance)
-            Name (string)
-            Containers (table)
-
-        }
-
-        Container creation - {
-
-            Container (instance)
-            Name (string)
-            Tab (table)
-            Assets (table)
-            
-        }
-
-        Asset creation - {
-
-            Asset (instance)
-            Name (string)
-            Container (table)
-
-            Get (func) - {
-                arguments:
-                    [1] = string (can get a certain piece of data about the asset if it's available eg. Toggle_State)
-            }
-
-        }
-
-        Show (global func)
-        Hide (global func) - Alliases {
-            arguments:
-                [1] = bool (hide all in same tab)
-        }.
-        Update (global func)
-    }
-
---]]
-
---// Services
-local TweenService = game:GetService("TweenService")
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-
--- Shortened funcs
-local u2 = UDim2.new
-local v3 = Vector3.new
-local pi = math.pi
-local hf = hookfunction
-
--- Needed assets
-
--- Outer blur
-local Blur = Instance.new("BlurEffect")
-Blur.Name = "Xenon_Blur"
-Blur.Size = 0
-Blur.Parent = game.Lighting
-
-
--- Useful funcs
-
-function TandemTween(tbl, according, totaltime)
-	
-	local time_per = (totaltime/#tbl)
-	
-	for i = 1, #tbl do
-		
-		Tween(according[i], {Position = tbl[i]}, time_per)
-		task.wait(time_per)
-		
-	end
-	
+function library:Tween(asset, info, thing)
+game:GetService("TweenService"):Create(asset, info, thing):Play()
 end
 
-function Tween(inst, tType, t, yield, pref)
-    local Tween = TweenService:Create(inst, TweenInfo.new(pref and pref or t and t or 1), tType)
-    Tween:Play()
+function library:DropInfo(asset, info, tbl)
+if not tbl.debounce then
+tbl.debounce = true
 
-    if yield then
-        Tween.Completed:Wait()
-    end
+local newText = asset:FindFirstChild("Text"):Clone()
+newText.Parent = asset
+newText.Name = "Info"
+newText.TextTransparency = 1
+newText.TextSize = 24
+newText.Position = UDim2.new(asset:FindFirstChild("Text").Position.X.Scale, asset:FindFirstChild("Text").Position.X.Offset, ((asset:FindFirstChild("Text").Position.Y.Scale / 2) * 3), asset:FindFirstChild("Text").Position.Y.Offset)
+newText.Text = info
+
+local textAsset = asset:FindFirstChild("Text")
+
+library:Tween(asset, TweenInfo.new(0.5), {Size = UDim2.new(asset.Size.X.Scale, asset.Size.X.Offset, (asset.Size.Y.Scale * 2), asset.Size.Y.Offset)})
+library:Tween(textAsset, TweenInfo.new(0.5), {Position = UDim2.new(textAsset.Position.X.Scale, textAsset.Position.X.Offset, (textAsset.Position.Y.Scale / 2), textAsset.Position.Y.Offset), Size = UDim2.new(textAsset.Size.X.Scale, textAsset.Size.X.Offset, (textAsset.Size.Y.Scale / 2), textAsset.Size.Y.Offset)})
+library:Tween(asset["Down"], TweenInfo.new(0.3), {Rotation = 180, Position = UDim2.new(asset["Down"].Position.X.Scale, asset["Down"].Position.X.Offset, (asset["Down"].Position.Y.Scale / 2), asset["Down"].Position.Y.Offset)})
+wait(0.5)
+
+library:Tween(newText, TweenInfo.new(0.5), {TextTransparency = 0})
+
+wait(0.5)
+
+tbl.debounce = false
+tbl.showingInfo = true
+end
 end
 
-function RoundNumber(num, numDecimalPlaces)
-    return tonumber(string.format("%." .. (numDecimalPlaces or 0) .. "f", num))
+function library:RetractInfo(asset, tbl)
+if not tbl.debounce then
+tbl.debounce = true
+library:Tween(asset["Info"], TweenInfo.new(0.25), {TextTransparency = 1})
+library:Tween(asset["Down"], TweenInfo.new(0.3), {Rotation = 0, Position = UDim2.new(asset["Down"].Position.X.Scale, asset["Down"].Position.X.Offset, (asset["Down"].Position.Y.Scale * 2), asset["Down"].Position.Y.Offset)})
+library:Tween(asset, TweenInfo.new(0.5), {Size = UDim2.new(asset.Size.X.Scale, asset.Size.X.Offset, (asset.Size.Y.Scale / 2), asset.Size.Y.Offset)})
+
+local textAsset = asset:FindFirstChild("Text")
+library:Tween(textAsset, TweenInfo.new(0.5), {Position = UDim2.new(textAsset.Position.X.Scale, textAsset.Position.X.Offset, (textAsset.Position.Y.Scale * 2), textAsset.Position.Y.Offset), Size = UDim2.new(textAsset.Size.X.Scale, textAsset.Size.X.Offset, (textAsset.Size.Y.Scale * 2), textAsset.Size.Y.Offset)})
+
+wait(0.5)
+asset["Info"]:Destroy()
+tbl.debounce = false
+tbl.showingInfo = false
+end
 end
 
-function Ripple(asset, x, y)
-    assert(x and y, "Please provide x and y coordinates!")
-
-    coroutine.resume(coroutine.create(function()
-         local New_Ripple = GetAsset("RippleAsset"):Clone()
-         New_Ripple.Parent = asset
-         New_Ripple.ImageTransparency = 0.6
-         New_Ripple.Position = u2(0, (x-asset.AbsolutePosition.X), 0, (y-asset.AbsolutePosition.Y-36))
-		 New_Ripple.Size = u2(0, 0, 0, 0)
-
-         local Length, Size = 0.6, (asset.AbsoluteSize.X >= asset.AbsoluteSize.Y and asset.AbsoluteSize.X * 1.5 or button.AbsoluteSize.Y * 1.5)
-         local Tween = game:GetService("TweenService"):Create(New_Ripple, TweenInfo.new(Length, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            Size = u2(0, Size, 0, Size),
-            Position = u2(0.5, (-Size / 2), 0.5, (-Size / 2)),
-            ImageTransparency = 1
-         })
-         Tween:Play()
-         Tween.Completed:Wait()
-         New_Ripple:Destroy()
-    end))
+function library:RoundNumber(num, numDecimalPlaces)
+return tonumber(string.format("%." .. (numDecimalPlaces or 0) .. "f", num))
 end
 
-function WaitUntil(wait_for)
-    repeat task.wait() until wait_for
+function library:Ripple(ui, button, x, y, tbl)
+if x and y then
+spawn(function()
+local c = ui.Circle:Clone()
+c.Parent = button;
+
+c.ImageTransparency = 0.6
+
+local x, y = (x-button.AbsolutePosition.X), (y-button.AbsolutePosition.Y-36)
+c.Position = UDim2.new(0, x, 0, y)
+local len, size = 0.75, nil
+if button.AbsoluteSize.X >= button.AbsoluteSize.Y then
+size = (button.AbsoluteSize.X * 1.5)
+else
+size = (button.AbsoluteSize.Y * 1.5)
+end
+local tween = {}
+tween.Size = UDim2.new(0, size, 0, size)
+tween.Position = UDim2.new(0.5, (-size / 2), 0.5, (-size / 2))
+tween.ImageTransparency = 1
+
+local newTween = game:GetService("TweenService"):Create(c, TweenInfo.new(len, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), tween)
+
+newTween:Play()
+
+newTween.Completed:Wait()
+
+c:Destroy()
+end)
+end
 end
 
-function GetAsset(Asset)
-    for i,v in pairs(game.CoreGui:FindFirstChild("TUI2"):GetDescendants()) do
-    	if v.Name == Asset then
-			return v
-		end
-    end
+function library.Create(title, titleUnder)
+local lib = {}
+
+lib.UI = game:GetObjects("rbxassetid://6849423853")[1]
+lib.UI.Parent = game.CoreGui
+
+lib.Tabs = {}
+
+lib.UI.Main.Left.UIName.Text = title
+lib.UI.Main.Left.GameName.Text = titleUnder
+
+local content,isReady;
+
+spawn(function()
+content, isReady = game.Players:GetUserThumbnailAsync(game.Players.LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
+
+repeat wait() until content and isReady
+
+if _G.Settings.HidePicture == false then
+lib.UI.Main.Left.BottomLeft.Icon.Image = content
+else
+lib.UI.Main.Left.BottomLeft.Icon.Image = ""
+end
+end)
+
+
+if _G.Settings.HideName == false then
+lib.UI.Main.Left.BottomLeft.PlayerName.Text = game.Players.LocalPlayer.Name
+else
+lib.UI.Main.Left.BottomLeft.PlayerName.Text = "******"
 end
 
-function LibraryV2.UI(Name)
+lib.Notifications = {}
+lib.Notifications.Queue = {}
+lib.Notifications.Current = nil
 
-    if game.CoreGui:FindFirstChild("TUI2") then
-        game.CoreGui.TUI2:Destroy();
-        game.Lighting:FindFirstChild("Xenon_Blur"):Destroy();
-    end
+local MainFrame = lib.UI.Main
 
-    local Library
-    Library = {
-        _UI = game:GetObjects("rbxassetid://8388979705")[1],
-        Name = Name or "Untitled",
-        Tabs = {},
-        State = false,
-        ToggleKey = Enum.KeyCode.LeftControl,
-        Debounce = false,
+--Dragging
+local dragging
+local dragInput
+local dragStart
+local startPos
 
-        Show_UI = function()
-            local P = Library._UI.Lib.Position
-            Tween(Library._UI.Lib, {Position = u2(0.75, P.X.Offset, P.Y.Size, P.Y.Offset)})
-        end,
-        
-        Hide_UI = function()
-            local P = Library.UI.Lib.Position
-            Tween(Library._UI.Lib, {Position = u2(1, P.X.Offset, P.Y.Size, P.Y.Offset)})
-        end,
-
-        Hide_All = function()
-            for i,v in pairs(Library._UI.Lib.Holder:GetChildren()) do
-                if v.ClassName ~= "UIListLayout" and v.ClassName ~= "Folder" then
-                    v.Visible = false
-                end
-            end
-        end,
-
-        Show = function(show_tbl)
-            for i,v in pairs(show_tbl) do
-                v.Visible = true             
-            end
-        end,
-
-        Hide = function(hide_tbl)
-            for i,v in pairs(hide_tbl) do
-                v.Visible = false                
-            end
-        end,
-
-        Startup = function()
-            local TUI = Library._UI
-            local Widgets = TUI.Widgets
-            local Widget1, Widget2, Widget3, Widget4 = Widgets.Bookmarks, Widgets.Widget, Widgets.Discord, Widgets.Music
-            local Tabs = TUI.TabContainer
-            local BottomMenu = TUI.BottomMenu
-            local TopMenu = TUI.Top
-            local Time = TUI.Time
-            local TimeLabel = TUI.TimeLabel
-            
-            local TabsPos = Tabs.Position
-            local BMPos = BottomMenu.Position
-            local TPos = TopMenu.Position
-            local TimePos = Time.Position
-            local TLPos = TimeLabel.Position
-            local Transparency_Back = TUI.Darkener.BackgroundTransparency
-            local Widgets = {Widget1, Widget2, Widget3, Widget4}
-            local WidgetPos = {
-                
-                Widget1.Position,
-                Widget2.Position,
-                Widget3.Position,
-                Widget4.Position
-                
-            }
-            
-            for i,v in pairs(Widgets) do
-                v.Position = UDim2.new(v.Position.X.Scale, v.Position.X.Offset, 1, v.Position.Y.Offset)
-            end
-            Tabs.Position = UDim2.new(-0.05, Tabs.Position.X.Offset, Tabs.Position.Y.Scale, Tabs.Position.Y.Offset)
-            BottomMenu.Position = UDim2.new(BottomMenu.Position.X.Scale, BottomMenu.Position.X.Offset, 1, BottomMenu.Position.Y.Offset)
-            TopMenu.Position = UDim2.new(TopMenu.Position.X.Scale, TopMenu.Position.X.Offset, -0.15, TopMenu.Position.Y.Offset)
-            Time.TextTransparency = 1
-            TimeLabel.TextTransparency = 1
-            TUI.Darkener.BackgroundTransparency = 1
-            
-            for i,v in pairs(Library._UI:GetChildren()) do
-                if v.ClassName ~= "Folder" and v.Name ~= "Darkener" and v.Name ~= "MusicPlayer" then
-                    v.Visible = true
-                end
-            end
-
-            for i,v in pairs(Library._UI.Widgets:GetChildren()) do
-                v.Visible = true
-            end
-            
-            game.StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
-
-            --// Animate
-            Tween(TUI.Darkener, {BackgroundTransparency = Transparency_Back}, 0.5, true)
-            TandemTween(WidgetPos, Widgets, 0.5)
-            Tween(BottomMenu, {Position = BMPos}, 0.25)
-            Tween(Tabs, {Position = TabsPos}, 0.25)
-            Tween(TopMenu, {Position = TPos}, 0.25, true)
-        end,
-
-        Update = function()
-            if Library.Debounce then return end
-
-            if Library.State == true then
-                Library.Debounce = true
-                Tween(Blur, {Size = 24}, 0.5)
-                Library._UI.Enabled = true
-                Library.Startup()
-                Library.Debounce = false    
-            else
-                Library.Debounce = true
-                Library._UI.Enabled = false
-                Tween(Blur, {Size = 0}, 0.5, true)
-                Library.Debounce = false
-                game.StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, true)
-            end
-        end
-    }
-    Library._UI.Parent = game.CoreGui
-    Library._UI.Enabled = false
-    Library._UI:FindFirstChild("Name").Text = Library.Name
-    Library._UI.IgnoreGuiInset = true
-
-    Library._UI.Lib.Exit.MouseButton1Down:Connect(function()
-        Tween(Library._UI.Lib, {Position = u2(1, 0, Library._UI.Lib.Position.Y.Scale, 0)}, 0.5) 
-    end)
-
-    --// Top Menu
-    local TopMenu = Library._UI.Top
-
-    local ELib_Data
-    local _Data = pcall(function()
-        ELib_Data = game:GetService("HttpService"):JSONDecode(readfile("cf.elib"))
-    end)
-
-    function SaveData()
-        writefile(ELib_Data.Config_Name, game:GetService("HttpService"):JSONEncode(ELib_Data))
-    end
-
-    if not _Data then
-        ELib_Data = {
-            Last_Visit = os.date("%x", os.time()),
-            Config_Name = "cf_l.elib",
-        }
-
-        SaveData()
-    end
-
-    TopMenu.last.Text = "last visit: "..ELib_Data.Last_Visit
-    TopMenu.cf.Text = "cf name: "..ELib_Data.Config_Name
-    TopMenu.holder.TextLabel.Text = "welcome, "..game.Players.LocalPlayer.Name
-
-    ELib_Data.Last_Visit = os.date("%x", os.time())
-    SaveData()
-
-    --// Music System
-    local Widgets = Library._UI.Widgets
-    local MusicWidget = Widgets.Music
-
-    local Spotify
-    Spotify = MusicWidget.Spotify.MouseButton1Click:Connect(function()
-        Spotify:Disconnect()
-        task.wait(0.5)
-
-        Tween(MusicWidget.Spotify, {ImageTransparency = 1}, 0.3)
-        Tween(MusicWidget.Soundcloud, {ImageTransparency = 1}, 0.3)
-        task.wait(0.5)
-
-        local String = MusicWidget.Under.Text
-        for i = #MusicWidget.Under.Text, 0, -1 do
-            MusicWidget.Under.Text = string.sub(String, 0, i)
-            task.wait(0.1)
-        end
-
-        local TokenData
-		local Data = pcall(function()
-			TokenData = readfile("spotify.elib")
-		end)
-
-        if not Data then
-            local Typestring = "enter your spotify token"
-            for i = 0, #Typestring, 1 do
-                MusicWidget.Under.Text = string.sub(Typestring, 0, i)
-                task.wait(0.1)
-            end
-            Tween(MusicWidget.TokenBox, {Position = u2(0.5, 0, 0.775, 0)}, 0.5)
-            task.wait(0.5)
-
-            local Focus
-            Focus = MusicWidget.TokenBox.FocusLost:Connect(function()
-                if MusicWidget.TokenBox.Text ~= "" then
-                    Focus:Disconnect()
-                    writefile("spotify.elib", MusicWidget.TokenBox.Text)
-                    TokenData = MusicWidget.TokenBox.Text
-                    Tween(MusicWidget.TokenBox, {Position = u2(0.5, 0, 1, 0)}, 0.5)
-                end
-            end)
-        end
-        repeat wait() until TokenData ~= nil
-        local String = MusicWidget.Under.Text
-        for i = #MusicWidget.Under.Text, 0, -1 do
-            MusicWidget.Under.Text = string.sub(String, 0, i)
-            task.wait(0.1)
-        end
-        
-        local Typestring = "enjoy"
-        for i = 0, #Typestring, 1 do
-            MusicWidget.Under.Text = string.sub(Typestring, 0, i)
-            task.wait(0.1)
-        end
-
-        --// API stuff
-
-        function ConvertTime(Seconds)
-            local Minutes = (Seconds - Seconds%60)/60
-            Seconds = Seconds - Minutes*60
-
-            local Hours = (Minutes - Minutes%60)/60
-            Minutes = Minutes - Hours*60
-
-            return Format(Minutes)..":"..Format(Seconds)
-        end
-
-        local Spotify = function(url,method,token)
-            local success, res = pcall(syn.request, {
-                    Url = url,
-                    Method = method,
-                    Headers = {
-                        ["Accept"] = "application/json",
-                        ["Authorization"] = 'Bearer ' .. token,
-                        ["Content-Type"] = "application/json"
-                    }
-            })
-            if success == true and type(res) == "table" and #res.Body > 0 then
-                local parsed = game.HttpService:JSONDecode(res.Body)
-                return {
-                    Artist = parsed['item']['artists'][1]['name'],
-                    Title = parsed['item']['name'],
-                    Current = parsed['progress_ms'],
-                    Maximum = parsed['item']['duration_ms'],
-                    Playing = parsed['is_playing'],
-                }
-            else
-                return {
-                    Artist = 'Failed to get artist',
-                    Title = 'Failed to get song name',
-                    Current = 'nil',
-                    Maximum = 'nil'
-                }
-            end
-        end
-
-        Tween(MusicWidget.Previous, {ImageTransparency = 0}, 0.3)
-        Tween(MusicWidget.Skip, {ImageTransparency = 0}, 0.3)
-        Tween(MusicWidget.Pause, {ImageTransparency = 0}, 0.3)
-        Library._UI.MusicPlayer.Visible = true
-
-        local MusicPlayer = Library._UI.MusicPlayer
-
-        MusicWidget.Previous.MouseButton1Click:Connect(function()
-            pcall(Spotify, 'https://api.spotify.com/v1/me/player/previous', 'POST', TokenData)
-        end)
-
-        MusicWidget.Skip.MouseButton1Click:Connect(function()
-            pcall(Spotify, 'https://api.spotify.com/v1/me/player/next', 'POST', TokenData)
-        end)
-
-        MusicWidget.Pause.MouseButton1Click:Connect(function()
-            if MusicWidget.Pause.Image == "rbxassetid://6026663719" then
-                pcall(Spotify, 'https://api.spotify.com/v1/me/player/pause', 'PUT', TokenData)
-            else
-                pcall(Spotify, 'https://api.spotify.com/v1/me/player/play', 'PUT', TokenData)
-            end
-        end)
-
-        while wait(0.25) do
-            local Data_, Returned = pcall(Spotify, 'https://api.spotify.com/v1/me/player/currently-playing', 'GET', TokenData)
-            if Data_ then
-                local Current = math.floor(Returned.Current/1000)
-                local Max = math.floor(Returned.Maximum/1000)
-
-                MusicPlayer.Song.Text = Returned.Title
-                MusicPlayer.Author.Text = Returned.Artist
-                MusicPlayer.Time.Text =  ConvertTime(Current)
-                MusicPlayer.End.Text = ConvertTime(Max)
-                MusicPlayer.Timeline:TweenSize(u2(Current/Max, 0, 1, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, .25)
-                
-                if Returned.Playing then
-                    MusicWidget.Pause.Image = "rbxassetid://6026663719"
-                else
-                    MusicWidget.Pause.Image = "rbxassetid://6026663699"
-                end
-                if Returned.Artist == "" then
-                    MusicPlayer.Author.Text = "No artist found"
-                end
-            end
-        end
-
-
-    end)
-
-    Widgets.Discord.TextButton.MouseButton1Click:Connect(function()
-        setclipboard("This is for aesthetic though i may update it so you can plug your discord here.")
-    end)
-
-    game:GetService("UserInputService").InputBegan:Connect(function(Key, IsTyping)
-        if IsTyping then
-            return
-        end
-
-        if Key.KeyCode == Library.ToggleKey then
-            Library.State = not Library.State
-            Library.Update()
-        end
-    end)
-
-    return setmetatable(Library, LibraryV2)
+local function update(input)
+local delta = input.Position - dragStart
+game:GetService("TweenService"):Create(MainFrame, TweenInfo.new(0.1), {Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)}):Play()
 end
 
-function LibraryV2:Tab(Name, Icon)
-    local Tab
-    Tab = {
-        Name = Name,
-        Icon = "rbxassetid://"..Icon,
-        Containers = {},
-        Tweens = {},
+MainFrame.InputBegan:Connect(function(input)
+if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+dragging = true
+dragStart = input.Position
+startPos = MainFrame.Position
 
-        Tab = GetAsset("TabTemplate"):Clone(),
+input.Changed:Connect(function()
+if input.UserInputState == Enum.UserInputState.End then
+dragging = false
+end
+end)
+end
+end)
 
-        CancelTweens = function()
-            for i, tween in pairs(Tab.Tweens) do
-                tween:Cancel()
-                table.remove(Tab.Tweens, i)
-            end
-        end,
+MainFrame.InputChanged:Connect(function(input)
+if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+dragInput = input
+end
+end)
 
-        Update = function(...)
-            Tab.Tab.Icon.Image = Tab.Icon
-            Tab.Tab.Effect.TL.Label.Text = Tab.Name
-            
-            local _m = #self.Tabs-1
-            self._UI.TabContainer.Size = u2(0, 71, 0, (80)+(55*_m + (5*(_m+1))))
-        end,
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+if input == dragInput and dragging then
+update(input)
+end
+end)
 
-        _UI = self._UI
-    }
-	table.insert(self.Tabs, Tab)
-    
-    Tab.Tab.Parent = self._UI.TabContainer.Holder
-    Tab.Update()
-
-    Tab.Tab.MouseEnter:Connect(function()
-        Tab.CancelTweens() --To prevent bugging out
-
-        local TextTween = Tab.Tab.Effect.TL
-        local Tween = game:GetService("TweenService"):Create(TextTween, TweenInfo.new(0.2), {Position = u2(0.5, 0, 0.5, 0)})
-        Tween:Play()
-
-        table.insert(Tab.Tweens, Tween)
-    end)
-
-    Tab.Tab.MouseLeave:Connect(function()
-        Tab.CancelTweens() --To prevent bugging out
-
-        local TextTween = Tab.Tab.Effect.TL
-        local Tween = game:GetService("TweenService"):Create(TextTween, TweenInfo.new(0.2), {Position = u2(1.5, 0, 0.5, 0)})
-        Tween:Play()
-
-        table.insert(Tab.Tweens, Tween)
-    end)
-
-    Tab.Tab.MouseButton1Down:Connect(function()
-        Tween(self._UI.Lib, {Position = u2(0.75, 0, self._UI.Lib.Position.Y.Scale, 0)}, 0.5)
-        self.Hide_All()
-        self.Show(Tab.Containers)
-    end)
-    
-    self._UI.Lib.Holder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        self._UI.Lib.Holder.CanvasSize = UDim2.new(0,0,0,self._UI.Lib.Holder.UIListLayout.AbsoluteContentSize.Y)
-    end)
-
-    return setmetatable(Tab, LibraryV2)
+return setmetatable(lib, library)
 end
 
-function LibraryV2:Container(Name)
-    local Container
-    Container = {
-        Name = Name,
-        Assets = {},
-        Drops = {},
-        Tweens = {},
-        State = false,
+function library:Tab(name, imageId)
+local tab = {}
 
-        Container = GetAsset("Container"):Clone(),
+tab.Assets = {}
 
-        CancelTweens = function()
-            for i, tween in pairs(Container.Tweens) do
-                tween:Cancel()
-                table.remove(Container.Tweens, i)
-            end
-        end,
+tab.Lib = self
+tab.Tab = self.UI.Main.Left.Container.Template:Clone()
+tab.Tab.Name = name
+tab.Tab.TabName.Text = name
+tab.Tab.Parent = self.UI.Main.Left.Container
 
-        Update = function(...)
-            Container.Container.TextLabel.Text = Container.Name
-        end,
-
-        In = function()
-            --// Tween the container in
-            Container.CancelTweens()
-            Tween(Container.Container.ImageLabel, {Rotation = 0}, 0.3)
-            local Tween = game:GetService("TweenService"):Create(Container.Container, TweenInfo.new(0.3), {Size = u2(0, 422, 0, 50)})
-            Tween:Play()
-    
-            Tween.Completed:Wait()
-            table.insert(Container.Tweens, Tween)
-        end,
-
-        Out = function()
-            --// Tween the container out
-            Container.CancelTweens()
-            Tween(Container.Container.ImageLabel, {Rotation = 180}, 0.3)
-            local Tween = game:GetService("TweenService"):Create(Container.Container, TweenInfo.new(0.3), {Size = u2(0, 422, 0, ((65)+55*#Container.Assets))})
-            Tween:Play()
-    
-            table.insert(Container.Tweens, Tween)
-        end
-    }
-    table.insert(self.Containers, Container.Container)
-
-    Container.Container.Parent = self._UI.Lib.Holder
-    Container.Update()
-
-    Container.Container.ImageLabel.MouseButton1Down:Connect(function()
-        if Container.State then
-            Container.In()
-
-            for i,v in pairs(Container.Drops) do
-                if v.State == false then
-                    Tween(v.Asset, {Size = u2(0, 407 , 0, 50)}, 0.01)
-                    Tween(v.Asset.Image, {Rotation = 0}, 0.01)
-                end
-            end
-        else
-            Container.Out()
-        end
-
-        Container.State = not Container.State
-    end)
-
-    return setmetatable(Container, LibraryV2)
+if imageId then
+tab.Tab.TabIcon.Image = "rbxassetid://" .. imageId
 end
 
-function LibraryV2:Button(Name, Callback)
-    local Button
-    Button = {
-        Name = Name,
-        Callback = Callback or function() end,
-        Class = "Button",
+table.insert(self.Tabs, tab)
 
-        Asset = GetAsset("Button"):Clone(),
-
-        Update = function(...)
-            Button.Asset.Text = "  "..Button.Name
-        end
-    }
-    table.insert(self.Assets, Button.Asset)
-
-    Button.Asset.Visible = true
-    Button.Asset.Parent = self.Container.ScrollingFrame
-    Button.Update()
-
-    Button.Asset.MouseButton1Down:Connect(function(X, Y)
-        pcall(Button.Callback)
-        Ripple(Button.Asset, X, Y)
-    end)
-
-    return setmetatable(Button, LibraryV2)
+tab.Show = function()
+tab.Tab.Visible = true
 end
 
-function LibraryV2:Toggle(Name, StartingState, Callback)
-    local Toggle
-    Toggle = {
-
-        Name = Name,
-        State = StartingState,
-        Callback = Callback or function() end,
-        Class = "Toggle",
-
-        Asset = GetAsset("Toggle"):Clone(),
-
-        Update = function(...)
-            Toggle.Asset.Text = "  "..Toggle.Name
-            Toggle.Asset.ImageLabel.Image = (Toggle.State and "rbxassetid://6031068426" or "rbxassetid://6031068433")
-        end
-    }
-    table.insert(self.Assets, Toggle.Asset)
-
-    Toggle.Asset.Visible = true
-    Toggle.Asset.Parent = self.Container.ScrollingFrame
-    Toggle.Update()
-
-    Toggle.Asset.MouseButton1Down:Connect(function(X, Y)
-        Toggle.State = not Toggle.State
-        Toggle.Update()
-
-        pcall(Toggle.Callback, Toggle.State)
-        Ripple(Toggle.Asset, X, Y)
-    end)
-
-    return setmetatable(Toggle, LibraryV2)
+tab.Hide = function()
+tab.Tab.Visible = false
 end
 
-function LibraryV2:Dropdown(Name, List, Callback)
-    local Dropdown
-    Dropdown = {
-        
-        Name = Name,
-        List = List,
-        Callback = Callback or function() end,
-        State = false,
-        Debounce = false,
-        Class = "Dropdown",
-
-        Asset = GetAsset("Dropdown"):Clone(),
-
-        Other = {
-            ExtensionSize = nil
-        },
-
-        Update = function(...)
-            Dropdown.Asset.NameLabel.Text = "  "..Dropdown.Name
-            Dropdown.Other.ExtensionSize = ((70) + (45*#Dropdown.List) + (5*#Dropdown.List))
-
-            if #Dropdown.List > 6 then
-                Dropdown.Other.ExtensionSize = 375;
-            end
-
-            for _, v in pairs(Dropdown.Asset.DropContainer:GetChildren()) do
-                if v:IsA("TextButton") then
-                    v:Destroy()
-                end
-            end --// Clear the dropdown
-
-            --// Refresh with New ones
-            local Template = GetAsset("DropdownTemplate")
-            for i,v in pairs(Dropdown.List) do
-                local New_Template = Template:Clone()
-                New_Template.Parent = Dropdown.Asset.DropContainer
-                New_Template.Visible = true
-                New_Template.Text = "   " .. v
-                New_Template.Name = v
-
-                New_Template.MouseButton1Down:Connect(function()
-                    if Dropdown.State == false then
-                        pcall(Dropdown.Callback, v)
-                        Dropdown.Debounce = true
-                        State = not State
-                        Tween(Dropdown.Asset, {Size = u2(0, 407 , 0, 50)}, 0.35)
-                        Tween(Dropdown.Asset.Image, {Rotation = 0}, 0.35)
-                        Tween(self.Container, {Size = u2(self.Container.Size.X.Scale, self.Container.Size.X.Offset, self.Container.Size.Y.Scale, (self.Container.Size.Y.Offset - (Dropdown.Other.ExtensionSize-50)))}, 0.35)
-                        
-                        task.wait(0.5)
-                        Dropdown.Debounce = false
-                    end
-                end)
-
-            end
-
-            if #Dropdown.List > 6 then
-                local Content = Dropdown.Asset.DropContainer.UIListLayout.AbsoluteContentSize
-                Dropdown.Asset.DropContainer.CanvasSize = UDim2.new(0, 0, 0, Content.Y + 69);
-            else
-                Dropdown.Asset.DropContainer.CanvasSize = UDim2.new(0, 0, 0, 0);
-            end
-
-        end
-    }
-    table.insert(self.Assets, Dropdown.Asset)
-    table.insert(self.Drops, Dropdown)
-
-    Dropdown.Asset.Visible = true
-    Dropdown.Asset.Parent = self.Container.ScrollingFrame
-    Dropdown.Update()
-
-    Dropdown.Asset.MouseButton1Down:Connect(function(X, Y)
-        if Dropdown.Debounce then return end
-		Ripple(Dropdown.Asset, X, Y)
-
-        if State and Dropdown.Asset.Size.Y.Offset == 50 then
-            State = not State
-        end
-
-        if State then
-            Dropdown.Debounce = true
-            State = not State
-            Tween(Dropdown.Asset, {Size = u2(0, 407, 0, 50)}, 0.35)
-            Tween(Dropdown.Asset.Image, {Rotation = 0}, 0.35)
-            Tween(self.Container, {Size = u2(self.Container.Size.X.Scale, self.Container.Size.X.Offset, self.Container.Size.Y.Scale, (self.Container.Size.Y.Offset - (Dropdown.Other.ExtensionSize-50)))}, 0.35)
-            task.wait(0.5)
-            Dropdown.Debounce = false
-        else
-            Dropdown.Debounce = true
-            State = not State
-            Tween(Dropdown.Asset, {Size = u2(0, 407 , 0, Dropdown.Other.ExtensionSize)}, 0.35)
-            Tween(Dropdown.Asset.Image, {Rotation = 180}, 0.35)
-            Tween(self.Container, {Size = u2(self.Container.Size.X.Scale, self.Container.Size.X.Offset, self.Container.Size.Y.Scale, (self.Container.Size.Y.Offset + (Dropdown.Other.ExtensionSize-50)))}, 0.35)
-
-            task.wait(0.5)
-            Dropdown.Debounce = false
-        end
-    end)
-    
-
-    return setmetatable(Dropdown, LibraryV2)
+tab.Fix = function()
+self.UI.Main.Container.AutomaticCanvasSize = Enum.AutomaticSize.None
+self.UI.Main.Container.AutomaticCanvasSize = Enum.AutomaticSize.Y
 end
 
-function LibraryV2:Label(Text)
-    local Label
-    Label = {
-        Text = Text,
-        Class = "Label",
-
-        Asset = GetAsset("LabelTemplate"):Clone(),
-
-        Update = function(...)
-            Label.Asset.Text = "  "..Label.Text
-        end
-    }
-    table.insert(self.Assets, Label)
-
-    Label.Asset.Visible = true
-    Label.Asset.Parent = self.Container.ScrollingFrame
-    Label.Update()
-
-    return setmetatable(Label, LibraryV2)
+local totalAssets = 0
+for i,v in pairs(self.Tabs) do
+totalAssets = totalAssets + 1
 end
 
-function LibraryV2:Keybind(Name, Starting_Key, Blacklisted_Keys, Callback)
-    local Keybind
-    Keybind = {
-
-        Name = Name,
-        Key = Starting_Key or Enum.KeyCode.E,
-        Blacklist = Blacklisted_Keys or {"W", "A", "S", "D"},
-        Callback = Callback or function() end,
-        Debounce = false,
-        Class = "Keybind",
-
-        Asset = GetAsset("Key"):Clone(),
-
-        Connections = {In_Change = false},
-
-        ValidKey = function(Key)
-			return (typeof(Key) == "EnumItem")
-		end,
-
-		GetKeystringFromEnum = function(Key)
-			Key = tostring(Key)
-
-            if Key == "..." then
-                return "..."
-            end
-
-			return ( string.sub( Key,  14, #Key ) )
-		end,
-
-		IsNotMouse = function(Key)
-			return (Key.UserInputType == Enum.UserInputType.MouseButton1 or Key.UserInputType == Enum.UserInputType.MouseButton2)
-		end,
-
-        Update = function(...)
-            Keybind.Asset.Text = "  "..Keybind.Name
-            Keybind.Asset.Key_Back.Key_Label.Text = Keybind.GetKeystringFromEnum(Keybind.Key)
-        end
-    }
-    table.insert(self.Assets, Keybind.Asset)
-
-    Keybind.Asset.Visible = true
-    Keybind.Asset.Parent = self.Container.ScrollingFrame
-    Keybind.Update()
-
-    Keybind.Connections.KeyPress = game:GetService("UserInputService").InputBegan:Connect(function(Input, GameProcessedEvent)
-        if GameProcessedEvent then return end
-
-        if Input.KeyCode == Keybind.Key and not Keybind.Connections.In_Change == true then
-            pcall(Keybind.Callback)
-        end
-    end)
-
-    Keybind.Asset.MouseButton1Down:Connect(function(X, Y)
-        if not Keybind.Debounce then
-            Keybind.Debounce = true
-            Keybind.Connections.In_Change = true
-            Ripple(Keybind.Asset, X, Y)
-
-            local Continue = false
-            local Cache = {}
-            Cache.OldText = Keybind.Name
-            Cache.OldKey = Keybind.Key
-
-            Keybind.Name = Keybind.Name .. " [press enter to cancel]"
-            Keybind.Key = "..."
-            Keybind.Update()
-
-            Keybind.Connections.Change_Connection = game:GetService("UserInputService").InputBegan:Connect(function(Input, GameProcessedEvent)
-                if GameProcessedEvent then return end
-                if Keybind.IsNotMouse(Input) then return end
-
-                if Input.KeyCode == Enum.KeyCode.Return then
-                    Continue = true
-                    Keybind.Key = Cache.OldKey
-                    Keybind.Connections.Change_Connection:Disconnect()
-
-                    Keybind.Update()  
-                end
-
-                if not Continue and not table.find(Keybind.Blacklist, Keybind.GetKeystringFromEnum(Input.KeyCode)) then
-                    Keybind.Key = Input.KeyCode
-                    Keybind.Update()
-                    Continue = true
-
-                    pcall(Keybind.Callback, Keybind.GetKeystringFromEnum(Keybind.Key))
-                    Keybind.Connections.Change_Connection:Disconnect()
-                end
-            end)
-            repeat wait() until Continue
-            Keybind.Name = Cache.OldText
-            Keybind.Connections.In_Change = false
-            Cache = nil
-
-            Keybind.Update()
-            wait(0.5)
-            Keybind.Debounce = false
-        end
-    end)
-
+if totalAssets == 1 then
+-- first tab
+delay(0.1, function()
+for i,v in pairs(tab.Assets) do
+if v then
+v.Show()
+end
+end
+library:Tween(tab.Tab, TweenInfo.new(0.5), {BackgroundTransparency = 0})
+end)
 end
 
-function LibraryV2:TextBox(Name, Callback)
-    local TextBox
-    TextBox = {
+tab.Fix()
 
-        Name = Name,
-        Callback = Callback or function() end,
-        CanCall = true,
-        Class = "TextBox",
-
-        Asset = GetAsset("Textbox"):Clone(),
-
-        Update = function(...)
-            TextBox.Asset.Text = "  "..TextBox.Name
-
-			local Args = {...}
-            if Args[1] then
-                TextBox.Asset.Cover.BoxText.Text = Args[1]
-                pcall(TextBox.Callback, Args[1])
-            end
-        end
-    }
-    table.insert(self.Assets, TextBox.Asset)
-
-    TextBox.Asset.Visible = true
-    TextBox.Asset.Parent = self.Container.ScrollingFrame
-    TextBox.Update()
-
-    TextBox.Asset.Cover.BoxText.Focused:Connect(function()
-        if TextBox.CanCall then
-            TextBox.Asset.Cover.BoxText:ReleaseFocus()
-        end
-    end)
-
-    TextBox.Asset.MouseButton1Down:Connect(function(X, Y)
-        if TextBox.CanCall then
-            TextBox.CanCall = false
-            Ripple(TextBox.Asset, X, Y)
-
-            TextBox.Asset.Cover.BoxText:CaptureFocus()
-            TextBox.Asset.Cover.BoxText.FocusLost:Wait()
-            pcall(TextBox.Callback, TextBox.Asset.Cover.BoxText.Text)
-				
-            task.wait(0.2)
-            TextBox.CanCall = true
-        end
-    end)
+tab.Tab.MouseButton1Down:Connect(function()
+for i,v in pairs(self.Tabs) do
+library:Tween(v.Tab, TweenInfo.new(0.5), {BackgroundTransparency = 1})
+for i,v in pairs(v.Assets) do
+v.Hide()
+end
 end
 
-function LibraryV2:Slider(Name, Min, Max, Start, Callback, Use_Decimals)
-    local Slider
-    Slider = {
+for i,v in pairs(tab.Assets) do
+v.Show()
+end
+tab.Fix()
+library:Tween(tab.Tab, TweenInfo.new(0.5), {BackgroundTransparency = 0})
+end)
 
-        Name = Name,
-        Min = Min or 0,
-        Max = Max or 100,
-        Value = Start or math.floor((Max/2)+0.5),
-        Callback = Callback or function() end,
-        Class = "Slider",
+tab.Show()
 
-        Values = {
-            Dragging = false,
-
-        },
-
-        Asset = GetAsset("Slider"):Clone(),
-
-        Update = function(...)
-            Slider.Asset:FindFirstChild("Name").Text = Slider.Name
-
-            local New = Slider.Value
-            Slider.Asset.Slider_Whole.Slider:TweenSize(UDim2.new((New or 0) / Slider.Max, 0, 1, 0), "Out", "Sine", 0.1, true)
-			Slider.Asset.Percentage.Text = tostring(New)
-
-            --[[
-			if bool then
-				pcall(Slider.Callback, New)
-			end--]]
-        end
-    }
-    table.insert(self.Assets, Slider.Asset)
-
-    Slider.Asset.Name = Slider.Name
-    Slider.Asset.Visible = true
-    Slider.Asset.Parent = self.Container.ScrollingFrame
-    Slider.Update()
-
-    Slider.Asset.Slider_Whole.Slider.Circle.InputBegan:Connect(
-        function(Input)
-            if Input.UserInputType == Enum.UserInputType.MouseButton1 then
-                Slider.Dragging = true
-            end
-        end
-    )
-    Slider.Asset.Slider_Whole.Slider.Circle.InputEnded:Connect(
-        function(Input)
-            if Input.UserInputType == Enum.UserInputType.MouseButton1 then
-                Slider.Dragging = false
-            end
-        end
-    )
-
-    game:GetService("UserInputService").InputChanged:Connect(
-    function(Input)
-        if Slider.Dragging and Input.UserInputType == Enum.UserInputType.MouseMovement then
-            local Bound = Slider.Asset.Slider_Whole.AbsoluteSize.X
-            local Pos1 =
-                UDim2.new(
-                    math.clamp((Input.Position.X - Slider.Asset.Slider_Whole.Slider.AbsolutePosition.X) / Bound, 0, 1),
-                    0,
-                    1,
-                    0
-                )
-            Slider.Asset.Slider_Whole.Slider:TweenSize(Pos1, "Out", "Sine", 0.1, true)
-            Slider.Value = (Use_Decimals and RoundNumber((((Pos1.X.Scale * Slider.Max) / Slider.Max) * (Slider.Max - Slider.Min) + Slider.Min), 1) or math.floor((((Pos1.X.Scale * Slider.Max) / Slider.Max) * (Slider.Max - Slider.Min) + Slider.Min)))
-            Slider.Asset.Percentage.Text = tostring(Slider.Value)
-            pcall(Slider.Callback, Slider.Value)
-        end
-    end
-    )
-
+return setmetatable(tab, library)
 end
 
-function LibraryV2:Update(a_1, ...)
-    local Class = self.Class;
+function library:Button(text, info, callback)
+local button = {}
 
-    if (...) then
-        for i,v in pairs({...}) do
-            self[i] = v
-        end
-    end;
+button.callback = callback or function() end
+button.debounce = false
+button.showingInfo = false
+button.button = self.Lib.UI.Main.Container.Button:Clone()
+button.button.Parent = self.Lib.UI.Main.Container
+button.button:FindFirstChild("Text").Text = (text or "No Text")
+button.button.Name = (text or "No Text")
 
-    if not a_1 then return end;
-    if Class == "Button" then
-        self.Callback = a_1;
-    elseif Class == "Toggle" then
-        self.State = a_1;
-        self.Update();
-        pcall(self.Callback, self.State)
-    elseif Class == "Label" then
-        self.Text = a_1;
-    elseif Class == "Slider" then       
-        self.Value = a_1;
-    elseif Class == "Dropdown" then
-        self.List = a_1;
-    end
-
-    self.Update();
+button.Show = function()
+button.button.Visible = true
 end
 
-function LibraryV2:UpdateNotifications()
-
-    --// GET RID OF THE LOSER NOTIFICATIONS LOL
-    for i,v in pairs(LibraryV2.Notifications) do
-        if (tick()-v.Data.TOC) >= v.Data.Last then
-            --// Remove
-            --inst, tType, t, yield, pref
-            local Notif = v.Data.Notification
-            Tween(Notif, {Position = u2(1, Notif.Position.X.Offset, Notif.Position.Y.Scale, Notif.Position.Y.Offset)}, 0.55)
-            
-            delay(0.55, function()
-				Notif:Destroy()
-			end)
-            table.remove(LibraryV2.Notifications, i)
-        end
-    end
-
-	if #LibraryV2.Notifications > 1 then
-		table.sort(LibraryV2.Notifications, function(a, b)
-			return a.Data.Queue < b.Data.Queue
-		end)
-	end
-
-    for i,v in ipairs(LibraryV2.Notifications) do
-        --Let's determine if its a new notification or already tweened
-        local Move_Axis = (0.902 - (0.1 * (i-1)))
-        if v.Data.Notification.Position.X.Scale == 1 then
-            -- New
-            v.Data.Notification.Position = u2(1, v.Data.Notification.Position.X.Offset, Move_Axis, v.Data.Notification.Position.Y.Offset)
-            Tween(v.Data.Notification, {Position = u2(0.825, v.Data.Notification.Position.X.Offset, Move_Axis, v.Data.Notification.Position.Y.Offset)}, 0.5)
-        else
-            -- Old
-            Tween(v.Data.Notification, {Position = u2(0.825, v.Data.Notification.Position.X.Offset, Move_Axis, v.Data.Notification.Position.Y.Offset)}, 0.5)
-        end
-    end
+button.Hide = function()
+button.button.Visible = false
 end
 
-function LibraryV2:Notification(Title, Info, Icon, Last)
-    if #LibraryV2.Notifications >= 5 then
-        print("You have too many notifications ongoing.")
-        return
-    end
-
-    local Notification
-    Notification = {
-
-        Title = Title or "None",
-        Info = Info or "No Info",
-        Icon = Icon and "rbxassetid://" .. Icon or "rbxassetid://6031071053",
-
-        Data = {
-            Queue = #LibraryV2.Notifications+1,
-            Notification = GetAsset("Notification"):Clone(),
-            TOC = tick(),
-            Last = Last or 3
-        }
-    }
-    Notification.Data.Notification.Name = Notification.Data.Queue
-    Notification.Data.Notification.Bottom.Text = Notification.Info
-    Notification.Data.Notification.Top.Text = Notification.Title
-    Notification.Data.Notification.Icon.Image = Notification.Icon
-    Notification.Data.Notification.Parent = GetAsset("Notifications")
-    table.insert(LibraryV2.Notifications, Notification)
-
-    delay(Last+0.05, function()
-        LibraryV2:UpdateNotifications()
-    end)
-    LibraryV2:UpdateNotifications()
+button.Click = function(x, y)
+if not button.debounce then
+if not x or not y then
+x = (button.button.AbsolutePosition.X/2)
+y = (button.button.AbsolutePosition.Y/2)
+end
+library:Ripple(self.Lib.UI, button.button, x, y, button)
+button.callback()
+end
 end
 
-function LibraryV2:SetToggleKey(Key)
-    delay(0.05, function()
-      self.ToggleKey = Key
-    end)
+button.button.Down.MouseButton1Down:Connect(function()
+if not button.showingInfo then
+library:DropInfo(button.button, info, button)
+else
+library:RetractInfo(button.button, button)
+end
+end)
+
+button.button.MouseButton1Down:Connect(function(x,y)
+button.Click(x, y)
+end)
+
+table.insert(self.Assets, button)
+
+return setmetatable(button, library)
 end
 
-return LibraryV2
+function library:Toggle(text, info, state, callback, dont_run_on_start)
+local toggle = {}
+
+toggle.callback = callback or function() end
+toggle.debounce = false
+toggle.showingInfo = false
+toggle.state = state
+toggle.toggle = self.Lib.UI.Main.Container.Toggle:Clone()
+toggle.toggle.Parent = self.Lib.UI.Main.Container
+toggle.toggle:FindFirstChild("Text").Text = (text or "No Text")
+toggle.toggle.Name = (text or "No Text")
+
+toggle.Show = function()
+toggle.toggle.Visible = true
+end
+
+toggle.Hide = function()
+toggle.toggle.Visible = false
+end
+
+toggle.Refresh = function()
+if toggle.state then
+toggle.state = false
+toggle.debounce = true
+spawn(function()
+toggle.callback(toggle.state)
+end)
+local circle = toggle.toggle.Whole.Inner
+local newPosition = UDim2.new((circle.Position.X.Scale / 3), circle.Position.X.Offset, circle.Position.Y.Scale, circle.Position.Y.Offset)
+
+library:Tween(circle, TweenInfo.new(0.2), {Position = newPosition})
+library:Tween(circle.Parent, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(213, 213, 213)})
+
+wait(0.3)
+toggle.debounce = false
+else
+toggle.state = true
+toggle.debounce = true
+spawn(function()
+toggle.callback(toggle.state)
+end)
+local circle = toggle.toggle.Whole.Inner
+local newPosition = UDim2.new((circle.Position.X.Scale * 3), circle.Position.X.Offset, circle.Position.Y.Scale, circle.Position.Y.Offset)
+
+library:Tween(circle, TweenInfo.new(0.2), {Position = newPosition})
+library:Tween(circle.Parent, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(248, 86, 86)})
+
+wait(0.3)
+toggle.debounce = false
+end
+end
+
+spawn(function()
+if toggle.state then
+toggle.debounce = true
+local circle = toggle.toggle.Whole.Inner
+local newPosition = UDim2.new((circle.Position.X.Scale * 3), circle.Position.X.Offset, circle.Position.Y.Scale, circle.Position.Y.Offset)
+
+library:Tween(circle, TweenInfo.new(0.2), {Position = newPosition})
+library:Tween(circle.Parent, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(248, 86, 86)})
+
+wait(0.3)
+toggle.debounce = false
+end
+end)
+
+toggle.toggle.Down.MouseButton1Down:Connect(function()
+if not toggle.showingInfo then
+library:DropInfo(toggle.toggle, info, toggle)
+else
+library:RetractInfo(toggle.toggle, toggle)
+end
+end)
+
+toggle.toggle.MouseButton1Down:Connect(function(x,y)
+if not toggle.debounce then
+library:Ripple(self.Lib.UI, toggle.toggle, x, y, toggle)
+toggle.Refresh()
+end
+end)
+
+if not dont_run_on_start then
+local ran, failed = pcall(function()
+toggle.callback(toggle.state)
+end)
+
+if ran then
+print("Ran sucessfully.")
+else
+print("Failed to run but no worries!", failed)
+end
+end
+
+table.insert(self.Assets, toggle)
+return setmetatable(toggle, library)
+end
+
+function library:Seperator()
+local seperator = {}
+
+seperator.asset = self.Lib.UI.Main.Container.Seperator:Clone()
+seperator.asset.Parent = self.Lib.UI.Main.Container
+
+seperator.Show = function()
+seperator.asset.Visible = true
+end
+
+seperator.Hide = function()
+seperator.asset.Visible = false
+end
+
+table.insert(self.Assets, seperator)
+return setmetatable(seperator, library)
+end
+
+function library:Slider(name, min, max, starting, callback)
+local slider = {}
+
+slider.callback = callback or function() end
+slider.min = min or 1
+slider.max = max or 100
+
+slider.asset = self.Lib.UI.Main.Container.Slider:Clone()
+slider.asset.Name = (name or "None")
+slider.asset:FindFirstChild("Slider").Text = (name or "None")
+slider.asset.Parent = self.Lib.UI.Main.Container
+slider.holdAsset = self.Lib.UI.Main.Container
+
+slider.dragging = false
+
+slider.holdAsset = slider.asset.Holder.Holder.Circle
+
+local mouse = game.Players.LocalPlayer:GetMouse()
+local uis = game:GetService("UserInputService")
+local Value;
+
+local bound = slider.holdAsset.Parent.Parent.AbsoluteSize.X
+
+local IsDecimal = select(2, math.modf(starting)) ~= 0
+
+local function move(input)
+
+local pos1 =
+UDim2.new(
+math.clamp((input.Position.X - slider.holdAsset.Parent.AbsolutePosition.X) / bound, 0, 1),
+0,
+1,
+0
+)
+slider.holdAsset.Parent:TweenSize(pos1, "Out", "Sine", 0.1, true)
+local value = (IsDecimal and library:RoundNumber((((pos1.X.Scale * slider.max) / slider.max) * (slider.max - slider.min) + slider.min), 1) or math.floor((((pos1.X.Scale * slider.max) / slider.max) * (slider.max - slider.min) + slider.min)))
+slider.asset.Percentage.Text = tostring(value)
+pcall(slider.callback, value)
+end
+
+slider.holdAsset.InputBegan:Connect(
+function(input)
+if input.UserInputType == Enum.UserInputType.MouseButton1 then
+slider.dragging = true
+end
+end
+)
+slider.holdAsset.InputEnded:Connect(
+function(input)
+if input.UserInputType == Enum.UserInputType.MouseButton1 then
+slider.dragging = false
+end
+end
+)
+
+game:GetService("UserInputService").InputChanged:Connect(
+function(input)
+if slider.dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+move(input)
+end
+end
+)
+
+slider.Refresh = function(new, bool)
+
+slider.holdAsset.Parent:TweenSize(UDim2.new((new or 0) / slider.max, 0, 1, 0), "Out", "Sine", 0.1, true)
+slider.asset.Percentage.Text = tostring(new and (IsDecimal and library:RoundNumber(((new / slider.max) * (slider.max - slider.min) + slider.min), 1) or math.floor((new / slider.max) * (slider.max - slider.min) + slider.min) or 0))
+pcall(slider.callback, new)
+end
+
+   slider.Refresh(starting)
+
+slider.Show = function()
+slider.asset.Visible = true
+end
+
+slider.Hide = function()
+slider.asset.Visible = false
+end
+
+table.insert(self.Assets, slider)
+return setmetatable(slider, library)
+end
+
+function library:Dropdown(name, list, callback)
+local dropdown = {}
+
+dropdown.table = list
+dropdown.callback = callback or function() end
+
+dropdown.debounce = false
+
+dropdown.asset = self.Lib.UI.Main.Container.Dropdown:Clone()
+dropdown.asset.Parent = self.Lib.UI.Main.Container
+
+dropdown.assets = {}
+dropdown.connections = {}
+
+dropdown.asset:FindFirstChild("Text").Text = dropdown.table[1]
+
+function dropdown.Refresh()
+if not table.find(dropdown.table, dropdown.asset:FindFirstChild("Text").Text) then
+dropdown.asset:FindFirstChild("Text").Text = dropdown.table[1]
+end
+end
+
+dropdown.showing = false
+
+dropdown.asset.MouseButton1Down:Connect(function(x, y)
+if not dropdown.debounce then
+library:Ripple(self.Lib.UI, dropdown.asset, x, y, {["showingInfo"] = false})
+if #dropdown.assets < 1 then
+dropdown.debounce = true
+local passed = false
+local num = 0
+local assets = {}
+for i,v in ipairs(dropdown.asset.Parent:GetChildren()) do
+if v.ClassName ~= "Folder" and v.ClassName ~= "UIListLayout" and v.ClassName ~= "UIAspectRatioConstraint"  and v.Visible and not passed and v == dropdown.asset then
+passed = true
+end
+
+if passed then
+if v ~= dropdown.asset then
+num = num + 1
+v.Parent = v.Parent.Hold
+table.insert(assets, v)
+end
+end
+end
+
+library:Tween(dropdown.asset["Down"], TweenInfo.new(0.3), {Rotation = 180})
+
+for i = 1, #dropdown.table do
+local newDrop = self.Lib.UI.Main.Container.DropdownDrop:Clone()
+newDrop.Parent = self.Lib.UI.Main.Container
+
+
+newDrop:FindFirstChild("Text").Text = dropdown.table[i]
+
+newDrop.Visible = true
+library:Tween(newDrop, TweenInfo.new(0.2), {BackgroundTransparency = 0})
+library:Tween(newDrop:FindFirstChild("Text"), TweenInfo.new(0.3), {TextTransparency = 0})
+
+local thing = {}
+
+thing.Asset = newDrop
+
+thing.Show = function()
+dropdown.assets[i].Visible = true
+end
+
+thing.Hide = function()
+dropdown.assets[i].Visible = false
+end
+
+table.insert(dropdown.assets, newDrop)
+table.insert(self.Assets, thing)
+
+local con;
+
+con = thing.Asset.MouseButton1Down:Connect(function(x, y)
+if dropdown.showing then
+table.insert(dropdown.connections, con)
+dropdown.debounce = true
+library:Tween(dropdown.asset["Down"], TweenInfo.new(0.3), {Rotation = 0})
+
+if dropdown.asset:FindFirstChild("Text").Text ~= dropdown.table[i] then
+dropdown.asset:FindFirstChild("Text").Text = dropdown.table[i]
+dropdown.callback(dropdown.table[i])
+end
+
+for i,v in pairs(dropdown.connections) do
+v:Disconnect()
+table.remove(dropdown.connections, i)
+end
+
+for i = #dropdown.assets, 1, -1 do
+library:Tween(dropdown.assets[i], TweenInfo.new(0.2), {BackgroundTransparency = 1})
+library:Tween(dropdown.assets[i]:FindFirstChild("Text"), TweenInfo.new(0.3), {TextTransparency = 1})
+
+game:GetService("RunService").RenderStepped:Wait()
+
+dropdown.assets[i]:Destroy()
+
+for a,v in pairs(self.Assets) do
+if v.Asset == dropdown.assets[i] then
+table.remove(self.Assets, a)
+end
+end
+table.remove(dropdown.assets, i)
+end
+
+dropdown.debounce = false
+end
+end)
+
+game:GetService("RunService").RenderStepped:Wait()
+end
+
+for i,v in ipairs(assets) do
+v.Parent = v.Parent.Parent
+end
+
+for i,v in pairs(assets) do
+table.remove(assets, i)
+end
+
+dropdown.showing = true
+dropdown.debounce = false
+else
+dropdown.debounce = true
+library:Tween(dropdown.asset["Down"], TweenInfo.new(0.3), {Rotation = 0})
+for i = #dropdown.assets, 1, -1 do
+library:Tween(dropdown.assets[i], TweenInfo.new(0.2), {BackgroundTransparency = 1})
+library:Tween(dropdown.assets[i]:FindFirstChild("Text"), TweenInfo.new(0.3), {TextTransparency = 1})
+
+game:GetService("RunService").RenderStepped:Wait()
+
+dropdown.assets[i]:Destroy()
+
+for a,v in pairs(self.Assets) do
+if v.Asset == dropdown.assets[i] then
+table.remove(self.Assets, a)
+end
+end
+table.remove(dropdown.assets, i)
+end
+dropdown.showing = false
+dropdown.debounce = false
+end
+end
+end)
+
+dropdown.Hide = function()
+dropdown.asset.Visible = false
+end
+
+dropdown.Show = function()
+dropdown.asset.Visible = true
+end
+
+table.insert(self.Assets, dropdown)
+return setmetatable(dropdown, library)
+end
+
+function library:Label(text)
+local label = {}
+
+label.asset = self.Lib.UI.Main.Container.Label:Clone()
+label.asset.Parent = self.Lib.UI.Main.Container
+
+label.class = "label"
+
+function label.Refresh(newText)
+label.asset:FindFirstChild("Text").Text = newText
+end
+
+label.Refresh(text)
+
+label.Show = function()
+label.asset.Visible = true
+end
+
+label.Hide = function()
+label.asset.Visible = false
+end
+
+table.insert(self.Assets, label)
+return setmetatable(label, library)
+end
+
+function library:TextBox(text, callback)
+local textbox = {}
+
+textbox.Name = text
+textbox.callback = callback or function() end
+textbox.class = "textbox"
+textbox.debounce = false
+
+textbox.asset = self.Lib.UI.Main.Container.TextBox:Clone()
+textbox.asset.Parent = self.Lib.UI.Main.Container
+textbox.asset:FindFirstChild("Text").Text = text
+
+textbox.typing = false
+
+textbox.connections = {}
+
+textbox.asset.Outline.Box.Focused:Connect(function()
+if not textbox.typing then
+textbox.asset.Outline.Box:ReleaseFocus()
+end
+end)
+
+textbox.asset.MouseButton1Down:Connect(function(x,y)
+if not textbox.debounce then
+textbox.debounce = true
+textbox.typing = true
+library:Ripple(self.Lib.UI, textbox.asset, x, y, textbox)
+library:Tween(textbox.asset.Outline, TweenInfo.new(0.35, Enum.EasingStyle.Quart), {
+Size = UDim2.new((textbox.asset.Outline.Size.X.Scale + 0.225), textbox.asset.Outline.Size.X.Offset, textbox.asset.Outline.Size.Y.Scale, textbox.asset.Outline.Size.Y.Offset),
+Position = UDim2.new((textbox.asset.Outline.Position.X.Scale - 0.1125), textbox.asset.Outline.Position.X.Offset, textbox.asset.Outline.Position.Y.Scale, textbox.asset.Outline.Position.Y.Offset)
+})
+wait(0.35)
+textbox.asset.Outline.Box:CaptureFocus()
+textbox.asset.Outline.Box.FocusLost:Wait()
+textbox.typing = false
+library:Tween(textbox.asset.Outline, TweenInfo.new(0.35, Enum.EasingStyle.Quart), {
+Size = UDim2.new((textbox.asset.Outline.Size.X.Scale - 0.225), textbox.asset.Outline.Size.X.Offset, textbox.asset.Outline.Size.Y.Scale, textbox.asset.Outline.Size.Y.Offset),
+Position = UDim2.new((textbox.asset.Outline.Position.X.Scale + 0.1125), textbox.asset.Outline.Position.X.Offset, textbox.asset.Outline.Position.Y.Scale, textbox.asset.Outline.Position.Y.Offset),
+})
+
+textbox.callback(textbox.asset.Outline.Box.Text)
+
+wait(0.35)
+
+textbox.debounce = false
+end
+end)
+
+textbox.Show = function()
+textbox.asset.Visible = true
+end
+
+textbox.Hide = function()
+textbox.asset.Visible = false
+end
+
+table.insert(self.Assets, textbox)
+return setmetatable(textbox, library)
+end
+
+function library:Keybind(name, key, blacklist, callback)
+   local keybind = {}
+
+   if (#blacklist) == 0 then
+       blacklist = nil
+   end
+
+   keybind.key_blacklist = blacklist or {"W", "A", "S", "D"}
+
+   keybind.ValidKey = function(key)
+       return (typeof(key) == "EnumItem")
+   end
+
+   keybind.GetKeystringFromEnum = function(key)
+       key = tostring(key)
+       return ( string.sub( key,  14, #key ) )
+   end
+
+   keybind.IsNotMouse = function(key)
+       return (key.UserInputType == Enum.UserInputType.MouseButton1 or key.UserInputType == Enum.UserInputType.MouseButton2)
+   end
+
+   keybind.callback = callback or function() end
+keybind.asset = self.Lib.UI.Main.Container.Keybind:Clone()
+keybind.asset.Parent = self.Lib.UI.Main.Container
+
+   keybind.class = "keybind"
+keybind.debounce = false
+
+   keybind.key = (keybind.ValidKey(key) and key) or Enum.KeyCode.E --// default key
+
+   keybind.asset:FindFirstChild("Text").Text = name
+   keybind.asset:FindFirstChild("RoundHolder").TextLabel.Text = keybind.GetKeystringFromEnum(keybind.key)
+
+   keybind.in_change = false
+   keybind.change_conn = nil
+
+   keybind.KeyPress = game:GetService("UserInputService").InputBegan:Connect(function(input, gpe)
+       if gpe then return end
+
+       if input.KeyCode == keybind.key and not keybind.in_change then
+           pcall(keybind.callback)
+       end
+   end)
+
+keybind.asset.MouseButton1Down:Connect(function(x,y)
+       if not keybind.debounce then
+           keybind.debounce = true
+           keybind.in_change = true
+           library:Ripple(self.Lib.UI, keybind.asset, x, y, keybind)
+
+           local contin = false
+
+           local cache = {}
+           cache.OldText = keybind.asset:FindFirstChild("Text").Text
+           cache.OldKey = keybind.asset:FindFirstChild("RoundHolder").TextLabel.Text
+
+           keybind.asset:FindFirstChild("Text").Text = (cache.OldText .. " [press enter to cancel]")
+           keybind.asset:FindFirstChild("RoundHolder").TextLabel.Text = "..."
+
+           keybind.change_conn = game:GetService("UserInputService").InputBegan:Connect(function(input, gpe)
+               if gpe then return end
+
+               if keybind.IsNotMouse(input) then return end
+
+               if input.KeyCode == Enum.KeyCode.Return then
+                   contin = true
+                   keybind.asset:FindFirstChild("RoundHolder").TextLabel.Text = cache.OldKey
+                   keybind.change_conn:Disconnect()
+                   return  
+               end
+
+               if not table.find(keybind.key_blacklist, keybind.GetKeystringFromEnum(input.KeyCode)) then
+                   keybind.key = input.KeyCode
+                   keybind.asset:FindFirstChild("RoundHolder").TextLabel.Text = keybind.GetKeystringFromEnum(keybind.key)
+                   contin = true
+
+                   pcall(keybind.callback, keybind.GetKeystringFromEnum(keybind.key))
+
+                   keybind.change_conn:Disconnect()
+               end
+           end)
+
+           repeat wait() until contin
+
+           keybind.asset:FindFirstChild("Text").Text = cache.OldText
+           cache = nil
+           keybind.in_change = false
+
+           wait(0.5)
+           keybind.debounce = false
+       end
+   end)
+
+   keybind.Show = function()
+       keybind.asset.Visible = true
+   end
+
+   keybind.Hide = function()
+       keybind.asset.Visible = false
+   end
+
+   table.insert(self.Assets, keybind)
+   return setmetatable(keybind, library)
+end
+
+function library:Notification(text)
+local notification = {}
+notification.NotifText = text
+notification.Bind = nil
+table.insert(self.Lib.Notifications.Queue, notification)
+
+spawn(function()
+
+for notif = 1, #self.Lib.Notifications.Queue do
+repeat wait() until not self.Lib.Notifications.Current
+self.Lib.Notifications.Current = self.Lib.Notifications.Queue[notif]
+
+local Cover = self.Lib.UI.Main.BackgroundCover
+Cover.Visible = true
+
+Cover.Notification.NotificationLabel.Text = (self.Lib.Notifications.Queue[notif].NotifText or "No text provided")
+
+local TweenData = {
+Transparency = 0.5
+}
+
+local CoverTween = game:GetService("TweenService"):Create(Cover, TweenInfo.new(0.5), TweenData)
+CoverTween:Play()
+CoverTween.Completed:Wait()
+
+local TweenData2 = {
+Position = UDim2.new(0.5, 0, 0.7, 0)
+}
+
+local NotifTween = game:GetService("TweenService"):Create(Cover.Notification, TweenInfo.new(0.5), TweenData2)
+NotifTween:Play()
+NotifTween.Completed:Wait()
+
+self.Lib.Notifications.Queue[notif].Bind = Cover.Notification.Ok.MouseButton1Click:Connect(function()
+local TweenData3 = {
+Position = UDim2.new(0.5, 0, 1, 0)
+}
+
+local NotifTween2 = game:GetService("TweenService"):Create(Cover.Notification, TweenInfo.new(0.5), TweenData3)
+NotifTween2:Play()
+NotifTween2.Completed:Wait()
+
+local TweenData4 = {
+Transparency = 1
+}
+
+local CoverTween2 = game:GetService("TweenService"):Create(Cover, TweenInfo.new(0.5), TweenData4)
+CoverTween2:Play()
+CoverTween2.Completed:Wait()
+Cover.Visible = false
+
+self.Lib.Notifications.Queue[notif].Bind:Disconnect()
+table.remove(self.Lib.Notifications.Queue, notif)
+
+self.Lib.Notifications.Current = nil
+end)
+end
+
+end)
+end
+
+function library:Click()
+self.Click()
+end
+
+function library:Update(new, new2, new3)
+if self.table then
+self.table = new
+self.Refresh()
+elseif self.min and self.max then
+self.min = new
+self.max = new2
+self.Refresh(new3 or self.max/2, true)
+elseif self.toggle then
+if new ~= self.state then
+--self.state = (not new)
+self.Refresh()
+end
+elseif self.class == "label" then
+self.Refresh(new)
+end
+end
+
+function library:ToggleUI()
+self.UI.Enabled = not self.UI.Enabled
+end
